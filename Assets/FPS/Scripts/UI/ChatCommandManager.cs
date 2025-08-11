@@ -17,6 +17,8 @@ public class ChatCommandManager : MonoBehaviour
     private void Update()
     {
         CommandSymbol chosen = commandParser.ParseCommand(input, rootSymbol, out List<CommandSymbol> recommanded);
+        if (chosen != null && chosen.command != null)
+            chosen.command();
         string message = chosen?.phrase ?? "None Chosen";
         print(message);
         print(string.Join(", ", recommanded.Select(sym => sym.phrase)));
@@ -87,8 +89,9 @@ public class ChatCommandParser
         {
             foreach (var child in currentNode.children)
             {
-                if (ParseCommandRecursive(rawInput, targetString, child, recommend) != null)
-                    return child;
+                CommandSymbol chosen = ParseCommandRecursive(rawInput, targetString, child, recommend);
+                if (chosen != null)
+                    return chosen;
                 //null => no fit, not null => perfect fit
             }
         }
