@@ -3,16 +3,17 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using Unity.FPS.Game;
+using Unity.FPS.Gameplay;
 using System.Linq;
 using TMPro;
-using Unity.FPS.Gameplay;
+using System.Collections;
 
 public class ChatCommandManager : MonoBehaviour
 {
-    [SerializeField] private WeaponController blaster, charger, shotgun;
     [SerializeField] private GameObject chatPanel;
+    [SerializeField] private ChatCommands chatCommands;
     [SerializeField] private TMP_InputField textInput;
-    [SerializeField] private TMP_Text recommendations;
+    [SerializeField] private TMP_Text sugggestionsText;
     [SerializeField] private PlayerCharacterController playerController;
     private string input
     {
@@ -27,32 +28,21 @@ public class ChatCommandManager : MonoBehaviour
     private CommandSymbol parsedSymbol;
 
     //Command tree
-    private CommandSymbol rootSymbol, heal, getWeapon, getBlaster, getCharger, getShotgun;
+    private CommandSymbol rootSymbol;
 
     private ChatCommandParser commandParser = new ChatCommandParser();
-    private ChatCommands commands = new ChatCommands();
 
     private void Awake()
     {
-        ConstructTree();
+        rootSymbol = chatCommands.rootSymbol;
+
         textInput.onValueChanged.AddListener(UpdateInput);
         textInput.text = "";
         chatPanel.SetActive(false);
-        recommendations.text = "";
+        sugggestionsText.text = "";
     }
 
-    private void ConstructTree()
-    {
-        rootSymbol = new("/");
-        heal = new("heal", () => commands.Heal());
-        getWeapon = new("get weapon");
-        getBlaster = new("blaster", () => commands.GetWeapon(blaster));
-        getCharger = new("charger", () => commands.GetWeapon(charger));
-        getShotgun = new("shotgun", () => commands.GetWeapon(shotgun));
-
-        rootSymbol.children = new CommandSymbol[] { heal, getWeapon };
-        getWeapon.children = new CommandSymbol[] { getBlaster, getCharger, getShotgun };
-    }
+    
 
     private void Update()
     {
@@ -66,13 +56,13 @@ public class ChatCommandManager : MonoBehaviour
 
     private void ParseNewInput()
     {
-        parsedSymbol = commandParser.ParseCommand(input, rootSymbol, out List<CommandSymbol> recommanded);
+        parsedSymbol = commandParser.ParseCommand(input, rootSymbol, out List<CommandSymbol> suggested);
 
-        recommendations.text = string.Join("\n", recommanded.Select(sym => sym.phrase));
+        sugggestionsText.text = string.Join("\n", suggested.Select(sym => sym.phrase));
 
         string message = parsedSymbol?.phrase ?? "None Chosen";
         print(message);
-        print(string.Join(", ", recommanded.Select(sym => sym.phrase)));
+        print(string.Join(", ", suggested.Select(sym => sym.phrase)));
     }
 
     private void HandleEnterKey()
@@ -80,7 +70,7 @@ public class ChatCommandManager : MonoBehaviour
         if (!chatPanel.activeInHierarchy)
         {
             chatPanel.SetActive(true);
-            textInput.Select();
+            StartCoroutine(FocusInputNextFrame());
             playerController.enabled = false;
             return;
         }
@@ -90,9 +80,17 @@ public class ChatCommandManager : MonoBehaviour
             parsedSymbol.command();
         }
 
+        textInput.Select();
         chatPanel.SetActive(false);
         textInput.text = "";
         playerController.enabled = true;
+    }
+
+    private IEnumerator FocusInputNextFrame()
+    {
+        yield return null; // wait one frame
+        textInput.Select();
+        textInput.ActivateInputField();
     }
 
     private void OnDestroy()
@@ -103,17 +101,17 @@ public class ChatCommandManager : MonoBehaviour
 
 public class ChatCommandParser
 {
-    public CommandSymbol ParseCommand(string input, CommandSymbol rootNode, out List<CommandSymbol> recommend)
+    public CommandSymbol ParseCommand(string input, CommandSymbol rootNode, out List<CommandSymbol> suggest)
     {
-        recommend = new List<CommandSymbol>();
+        suggest = new List<CommandSymbol>();
         rootSymbol = rootNode;
-        return ParseCommandRecursive(input, "", rootNode, recommend);
+        return ParseCommandRecursive(input, "", rootNode, suggest);
     }
 
     private CommandSymbol rootSymbol;
 
     private CommandSymbol ParseCommandRecursive(
-        string rawInput, string commandString, CommandSymbol currentNode, List<CommandSymbol> recommend)
+        string rawInput, string commandString, CommandSymbol currentNode, List<CommandSymbol> suggest)
     {
         if (rawInput == "")
             return null;
@@ -132,7 +130,7 @@ public class ChatCommandParser
             {
                 foreach (CommandSymbol child in currentNode.children)
                 {
-                    recommend.Add(child);
+                    suggest.Add(child);
                 }
             }
             return currentNode;
@@ -140,7 +138,7 @@ public class ChatCommandParser
         //If input contained in target, recommend currentNode
         if (commandString.StartsWith(rawInput))
         {
-            recommend.Add(currentNode);
+            suggest.Add(currentNode);
             return null;
         }
         //If input CONTAINS target, check children
@@ -148,7 +146,7 @@ public class ChatCommandParser
         {
             foreach (var child in currentNode.children)
             {
-                CommandSymbol chosen = ParseCommandRecursive(rawInput, commandString, child, recommend);
+                CommandSymbol chosen = ParseCommandRecursive(rawInput, commandString, child, suggest);
                 if (chosen != null)
                     return chosen;
                 //null => no fit, not null => perfect fit
@@ -171,11 +169,4 @@ public class CommandSymbol
         this.phrase = phrase;
         this.command = command;
     }
-}
-
-public class ChatCommands
-{
-    public void Heal() => Debug.Log("Heal");
-
-    public void GetWeapon(WeaponController weapon) => Debug.Log($"Get weapon {weapon}");
 }
