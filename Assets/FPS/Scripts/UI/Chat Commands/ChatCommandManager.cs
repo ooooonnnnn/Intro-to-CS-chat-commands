@@ -40,8 +40,6 @@ public class ChatCommandManager : MonoBehaviour
         sugggestionsText.text = "";
     }
 
-    
-
     private void Update()
     {
         if (Input.GetKeyDown(KeyCode.Return))
