@@ -7,9 +7,9 @@ public class ChatCommands : MonoBehaviour
     [SerializeField] private WeaponController blaster, charger, shotgun;
     [SerializeField] private PlayerWeaponsManager weaponsManager;
     [SerializeField] private Health playerHealth;
-    public void Heal() => playerHealth.Heal(playerHealth.MaxHealth);
+    private void Heal() => playerHealth.Heal(playerHealth.MaxHealth);
 
-    public void GetWeapon(WeaponController weapon) => weaponsManager.AddWeapon(weapon);
+    private void GetWeapon(WeaponController weapon) => weaponsManager.AddWeapon(weapon);
 
     private CommandSymbol heal, getWeapon, getBlaster, getCharger, getShotgun;
     public CommandSymbol rootSymbol { get; private set; }
