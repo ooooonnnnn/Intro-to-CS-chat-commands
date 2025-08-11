@@ -1,8 +1,6 @@
-using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
-using Unity.FPS.Game;
 using Unity.FPS.Gameplay;
 using System.Linq;
 using TMPro;
