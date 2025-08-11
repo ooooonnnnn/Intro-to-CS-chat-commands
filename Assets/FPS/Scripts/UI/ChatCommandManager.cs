@@ -4,42 +4,101 @@ using System.Collections.Generic;
 using UnityEngine;
 using Unity.FPS.Game;
 using System.Linq;
+using TMPro;
+using Unity.FPS.Gameplay;
 
 public class ChatCommandManager : MonoBehaviour
 {
-    private readonly CommandSymbol rootSymbol, heal, getWeapon, getBlaster, getCharger, getShotgun;
-
-    [SerializeField] private string input = "";
     [SerializeField] private WeaponController blaster, charger, shotgun;
+    [SerializeField] private GameObject chatPanel;
+    [SerializeField] private TMP_InputField textInput;
+    [SerializeField] private TMP_Text recommendations;
+    [SerializeField] private PlayerCharacterController playerController;
+    private string input
+    {
+        get => _input;
+        set
+        {
+            _input = value;
+            ParseNewInput();
+        }
+    }
+    private string _input;
+    private CommandSymbol parsedSymbol;
+
+    //Command tree
+    private CommandSymbol rootSymbol, heal, getWeapon, getBlaster, getCharger, getShotgun;
 
     private ChatCommandParser commandParser = new ChatCommandParser();
+    private ChatCommands commands = new ChatCommands();
+
+    private void Awake()
+    {
+        ConstructTree();
+        textInput.onValueChanged.AddListener(UpdateInput);
+        textInput.text = "";
+        chatPanel.SetActive(false);
+        recommendations.text = "";
+    }
+
+    private void ConstructTree()
+    {
+        rootSymbol = new("/");
+        heal = new("heal", () => commands.Heal());
+        getWeapon = new("get weapon");
+        getBlaster = new("blaster", () => commands.GetWeapon(blaster));
+        getCharger = new("charger", () => commands.GetWeapon(charger));
+        getShotgun = new("shotgun", () => commands.GetWeapon(shotgun));
+
+        rootSymbol.children = new CommandSymbol[] { heal, getWeapon };
+        getWeapon.children = new CommandSymbol[] { getBlaster, getCharger, getShotgun };
+    }
 
     private void Update()
     {
-        CommandSymbol chosen = commandParser.ParseCommand(input, rootSymbol, out List<CommandSymbol> recommanded);
-        if (chosen != null && chosen.command != null)
-            chosen.command();
-        string message = chosen?.phrase ?? "None Chosen";
+        if (Input.GetKeyDown(KeyCode.Return))
+        {
+            HandleEnterKey();
+        }
+    }
+
+    private void UpdateInput(string newInput) => input = newInput;
+
+    private void ParseNewInput()
+    {
+        parsedSymbol = commandParser.ParseCommand(input, rootSymbol, out List<CommandSymbol> recommanded);
+
+        recommendations.text = string.Join("\n", recommanded.Select(sym => sym.phrase));
+
+        string message = parsedSymbol?.phrase ?? "None Chosen";
         print(message);
         print(string.Join(", ", recommanded.Select(sym => sym.phrase)));
     }
 
-    public ChatCommandManager()
+    private void HandleEnterKey()
     {
-        rootSymbol = new("/");
-        heal = new("heal", () => Heal());
-        getWeapon = new("get weapon");
-        getBlaster = new("blaster", () => GetWeapon(blaster));
-        getCharger = new("charger", () => GetWeapon(charger));
-        getShotgun = new("shotgun", () => GetWeapon(shotgun));
+        if (!chatPanel.activeInHierarchy)
+        {
+            chatPanel.SetActive(true);
+            textInput.Select();
+            playerController.enabled = false;
+            return;
+        }
 
-        rootSymbol.children = new CommandSymbol[]{ heal, getWeapon};
-        getWeapon.children = new CommandSymbol[]{ getBlaster, getCharger, getShotgun };
+        if (parsedSymbol != null && parsedSymbol.command != null)
+        {
+            parsedSymbol.command();
+        }
+
+        chatPanel.SetActive(false);
+        textInput.text = "";
+        playerController.enabled = true;
     }
 
-    private void Heal() => print("Heal");
-
-    private void GetWeapon(WeaponController weapon) => print($"Get weapon {weapon}");
+    private void OnDestroy()
+    {
+        textInput.onValueChanged.RemoveListener(UpdateInput);
+    }
 }
 
 public class ChatCommandParser
@@ -54,7 +113,7 @@ public class ChatCommandParser
     private CommandSymbol rootSymbol;
 
     private CommandSymbol ParseCommandRecursive(
-        string rawInput, string targetString, CommandSymbol currentNode, List<CommandSymbol> recommend)
+        string rawInput, string commandString, CommandSymbol currentNode, List<CommandSymbol> recommend)
     {
         if (rawInput == "")
             return null;
@@ -62,12 +121,12 @@ public class ChatCommandParser
         string normalizedInput = string.Concat(rawInput.TrimEnd(), " ");
 
         //Construct target string
-        targetString = string.Concat(targetString, currentNode.phrase);
+        commandString = string.Concat(commandString, currentNode.phrase);
         if (currentNode != rootSymbol && currentNode.command == null)
-            targetString = string.Concat(targetString, " ");
+            commandString = string.Concat(commandString, " ");
 
         //Check if input fits the target string
-        if (normalizedInput == targetString || rawInput == targetString)
+        if (normalizedInput == commandString || rawInput == commandString)
         {
             if (currentNode.children != null)
             {
@@ -79,17 +138,17 @@ public class ChatCommandParser
             return currentNode;
         }
         //If input contained in target, recommend currentNode
-        if (targetString.StartsWith(rawInput))
+        if (commandString.StartsWith(rawInput))
         {
             recommend.Add(currentNode);
             return null;
         }
         //If input CONTAINS target, check children
-        if (normalizedInput.StartsWith(targetString))
+        if (normalizedInput.StartsWith(commandString))
         {
             foreach (var child in currentNode.children)
             {
-                CommandSymbol chosen = ParseCommandRecursive(rawInput, targetString, child, recommend);
+                CommandSymbol chosen = ParseCommandRecursive(rawInput, commandString, child, recommend);
                 if (chosen != null)
                     return chosen;
                 //null => no fit, not null => perfect fit
@@ -112,4 +171,11 @@ public class CommandSymbol
         this.phrase = phrase;
         this.command = command;
     }
+}
+
+public class ChatCommands
+{
+    public void Heal() => Debug.Log("Heal");
+
+    public void GetWeapon(WeaponController weapon) => Debug.Log($"Get weapon {weapon}");
 }
