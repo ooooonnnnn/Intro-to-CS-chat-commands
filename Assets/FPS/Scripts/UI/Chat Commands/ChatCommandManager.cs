@@ -30,7 +30,7 @@ public class ChatCommandManager : MonoBehaviour
 
     private ChatCommandParser commandParser = new ChatCommandParser();
 
-    private void Awake()
+    private void Start()
     {
         rootSymbol = chatCommands.rootSymbol;
 
